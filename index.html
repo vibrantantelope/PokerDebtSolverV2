@@ -1,196 +1,406 @@
-<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Poker Debt Solver</title> <link href="https://fonts.googleapis.com/css2?family=Rye&display=swap" rel="stylesheet"> <style> body { font-family: 'Rye', cursive; padding: 20px; margin: 0; background-color: #1c6b0a; background-image: url('https://www.transparenttextures.com/patterns/climpek.png'); display: flex; justify-content: center; align-items: center; min-height: 100vh; color: white; } .container { background-color: rgba(0, 0, 0, 0.7); padding: 40px; border-radius: 8px; border: 2px solid #ffd700; width: 100%; max-width: 600px; box-shadow: 0px 0px 20px 5px rgba(0,0,0,0.75); } label { display: block; margin-bottom: 5px; font-weight: bold; color: #ffd700; } input, button { width: 100%; padding: 10px; margin-top: 5px; border: 2px solid #ffd700; border-radius: 4px; box-sizing: border-box; font-size: 16px; background-color: rgba(0, 0, 0, 0.6); color: white; font-family: 'Rye', cursive; } button { background-color: #ffd700; color: black; border: none; margin-top: 20px; font-size: 18px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; } button:hover { background-color: #ffdf40; } #results, #netResults { margin-top: 20px; padding: 20px; background-color: rgba(0, 0, 0, 0.6); border-radius: 4px; color: white; } h1 { text-align: center; text-shadow: 2px 2px 4px #000000; } .flex-container { display: flex; justify-content: space-between; } .flex-container > div { flex: 1; } .error-message { color: #ff4d4d; margin-top: 10px; text-shadow: 1px 1px 2px #000000; } .poker-chips { position: absolute; bottom: 20px; right: 20px; width: 150px; } .player-input { margin-bottom: 20px; padding: 20px; background-color: rgba(0, 0, 0, 0.6); border-radius: 4px; } .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.8); } .modal-content { background-color: rgba(0, 0, 0, 0.7); margin: 10% auto; padding: 40px; border-radius: 8px; border: 2px solid #ffd700; width: 80%; max-width: 800px; box-shadow: 0px 0px 20px 5px rgba(0,0,0,0.75); } .close { color: #ffd700; float: right; font-size: 28px; font-weight: bold; cursor: pointer; } .close:hover { color: #ffdf40; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ffd700; } </style> </head> <body> <div class="container"> <h1>Poker Debt Solver</h1> <form id="pokerForm"> <div class="flex-container"> <div> <label for="bigBlind">Big Blind:</label> <input type="number" id="bigBlind" required> </div> <div> <label for="littleBlind">Little Blind:</label> <input type="number" id="littleBlind" required> </div> </div> <div id="playerInputs"> <div class="player-input"> <label for="name0">Name:</label> <input type="text" id="name0" required> <label for="buyin0">Buy-in Amount:</label> <input type="number" id="buyin0" required> <label for="balance0">End Balance:</label> <input type="number" id="balance0" required> </div> </div> <button type="button" onclick="addPlayer()">Add Player</button> <button type="button" onclick="processData()">Calculate Debts</button> <button type="button" onclick="clearAll()">Clear All</button> <button type="button" onclick="openModal()">View History</button> </form> <div id="errorContainer" class="error-message"></div> <div id="netResults"></div> <div id="results"></div> </div> <div id="historyModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <h2>Game History</h2>
-        <div id="gameHistory"></div>
-        <h2>Statistics</h2>
-        <div id="statistics"></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Debt Solver</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rye&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rye', cursive;
+            padding: 20px;
+            margin: 0;
+            background-color: #1c6b0a;
+            background-image: url('https://www.transparenttextures.com/patterns/climpek.png');
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 40px;
+            border-radius: 8px;
+            border: 2px solid #ffd700;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0px 0px 20px 5px rgba(0,0,0,0.75);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 2px solid #ffd700;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-family: 'Rye', cursive;
+        }
+
+        button {
+            background-color: #ffd700;
+            color: black;
+            border: none;
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #ffdf40;
+        }
+
+        #results, #netResults {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+            color: white;
+        }
+
+        h1 {
+            text-align: center;
+            text-shadow: 2px 2px 4px #000000;
+        }
+
+        .flex-container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .flex-container > div {
+            flex: 1;
+        }
+
+        .error-message {
+            color: #ff4d4d;
+            margin-top: 10px;
+            text-shadow: 1px 1px 2px #000000;
+        }
+
+        .poker-chips {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 150px;
+        }
+
+        .player-input {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-content {
+            background-color: rgba(0, 0, 0, 0.7);
+            margin: 10% auto;
+            padding: 40px;
+            border-radius: 8px;
+            border: 2px solid #ffd700;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0px 0px 20px 5px rgba(0,0,0,0.75);
+        }
+
+        .close {
+            color: #ffd700;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #ffdf40;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ffd700;
+        }
+
+        th {
+            background-color: #ffd700;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Poker Debt Solver</h1>
+        <form id="pokerForm">
+            <div id="playerInputs">
+                <div class="player-input">
+                    <label for="name0">Name:</label>
+                    <input type="text" id="name0" required>
+                    <label for="buyin0">Buy-in Amount:</label>
+                    <input type="number" id="buyin0" required>
+                    <label for="balance0">End Balance:</label>
+                    <input type="number" id="balance0" required>
+                </div>
+            </div>
+            <button type="button" onclick="addPlayer()">Add Player</button>
+            <button type="button" onclick="processData()">Calculate Debts</button>
+            <button type="button" onclick="clearAll()">Clear All</button>
+            <button type="button" onclick="openModal()">View History</button>
+        </form>
+        <div id="errorContainer" class="error-message"></div>
+        <div id="netResults"></div>
+        <div id="results"></div>
     </div>
-</div>
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Game History</h2>
+            <div id="gameHistory"></div>
+            <h2>Statistics</h2>
+            <div id="statistics"></div>
+        </div>
+    </div>
 
-<script>
-    let playerCount = 1;
-    let gameHistory = [];
+    <script>
+        let playerCount = 1;
+        let gameHistory = [];
 
-    function addPlayer() {
-        const playerInputs = document.getElementById('playerInputs');
-        const newPlayerInput = document.createElement('div');
-        newPlayerInput.className = 'player-input';
-        newPlayerInput.innerHTML = `
-            <label for="name${playerCount}">Name:</label>
-            <input type="text" id="name${playerCount}" required>
-            <label for="buyin${playerCount}">Buy-in Amount:</label>
-            <input type="number" id="buyin${playerCount}" required>
-            <label for="balance${playerCount}">End Balance:</label>
-            <input type="number" id="balance${playerCount}" required>
-        `;
-        playerInputs.appendChild(newPlayerInput);
-        playerCount++;
-    }
-
-    function settleDebts(buyIns, names, balances) {
-        const netChanges = names.map((name, index) => ({ name: name, amount: balances[index] - buyIns[index] }));
-        let debtors = netChanges.filter(item => item.amount < 0);
-        let creditors = netChanges.filter(item => item.amount > 0);
-
-        const transactions = [];
-        const netResults = netChanges.map(item => `${item.name}: Net ${item.amount >= 0 ? 'Gain' : 'Loss'}: $${item.amount.toFixed(2)}`);
-        
-        while (debtors.length > 0 && creditors.length > 0) {
-            const debtor = debtors[0];
-            const creditor = creditors[0];
-            
-            const payment = Math.min(-debtor.amount, creditor.amount);
-            transactions.push(`${debtor.name} -> ${creditor.name}: $${payment.toFixed(2)}`);
-            
-            debtor.amount += payment;
-            creditor.amount -= payment;
-            
-            if (debtor.amount >= -0.01) {
-                debtors.shift();
-            }
-            if (creditor.amount <= 0.01) {
-                creditors.shift();
-            }
+        function addPlayer() {
+            const playerInputs = document.getElementById('playerInputs');
+            const newPlayerInput = document.createElement('div');
+            newPlayerInput.className = 'player-input';
+            newPlayerInput.innerHTML = `
+                <label for="name${playerCount}">Name:</label>
+                <input type="text" id="name${playerCount}" required>
+                <label for="buyin${playerCount}">Buy-in Amount:</label>
+                <input type="number" id="buyin${playerCount}" required>
+                <label for="balance${playerCount}">End Balance:</label>
+                <input type="number" id="balance${playerCount}" required>
+            `;
+            playerInputs.appendChild(newPlayerInput);
+            playerCount++;
         }
 
-        return { transactions, netResults };
-    }
+        function settleDebts(buyIns, names, balances) {
+            const netChanges = names.map((name, index) => ({ name: name, amount: balances[index] - buyIns[index] }));
+            let debtors = netChanges.filter(item => item.amount < 0);
+            let creditors = netChanges.filter(item => item.amount > 0);
 
-    function processData() {
-        const buyIns = [];
-        const names = [];
-        const balances = [];
+            const transactions = [];
+            const netResults = netChanges.map(item => `${item.name}: Net ${item.amount >= 0 ? 'Gain' : 'Loss'}: $${item.amount.toFixed(2)}`);
 
-        for (let i = 0; i < playerCount; i++) {
-            const buyIn = parseFloat(document.getElementById(`buyin${i}`).value);
-            const name = document.getElementById(`name${i}`).value.trim();
-            const balance = parseFloat(document.getElementById(`balance${i}`).value);
+            while (debtors.length > 0 && creditors.length > 0) {
+                const debtor = debtors[0];
+                const creditor = creditors[0];
 
-            buyIns.push(buyIn);
-            names.push(name);
-            balances.push(balance);
+                const payment = Math.min(-debtor.amount, creditor.amount);
+                transactions.push(`${debtor.name} -> ${creditor.name}: $${payment.toFixed(2)}`);
+
+                debtor.amount += payment;
+                creditor.amount -= payment;
+
+                if (debtor.amount >= -0.01) {
+                    debtors.shift();
+                }
+                if (creditor.amount <= 0.01) {
+                    creditors.shift();
+                }
+            }
+
+            return { transactions, netResults };
         }
 
-        if (!validateTotals(buyIns, balances)) {
-            document.getElementById('errorContainer').innerText = 'Error: The total of end balances does not match the total of buy-ins.';
+        function processData() {
+            const buyIns = [];
+            const names = [];
+            const balances = [];
+
+            for (let i = 0; i < playerCount; i++) {
+                const buyIn = parseFloat(document.getElementById(`buyin${i}`).value);
+                const name = document.getElementById(`name${i}`).value.trim();
+                const balance = parseFloat(document.getElementById(`balance${i}`).value);
+
+                buyIns.push(buyIn);
+                names.push(name);
+                balances.push(balance);
+            }
+
+            if (!validateTotals(buyIns, balances)) {
+                document.getElementById('errorContainer').innerText = 'Error: The total of end balances does not match the total of buy-ins.';
+                document.getElementById('netResults').innerHTML = '';
+                document.getElementById('results').innerHTML = '';
+                return;
+            } else {
+                document.getElementById('errorContainer').innerText = '';
+            }
+
+            const results = settleDebts(buyIns, names, balances);
+            const netResultsContainer = document.getElementById('netResults');
+            const resultsContainer = document.getElementById('results');
+            netResultsContainer.innerHTML = '<h2>Net Results:</h2>' + results.netResults.join('<br>');
+            resultsContainer.innerHTML = '<h2>Transactions:</h2>' + results.transactions.join('<br>');
+
+            const gameResult = {
+                date: new Date().toLocaleString(),
+                players: names.map((name, index) => ({
+                    name: name,
+                    buyIn: buyIns[index],
+                    balance: balances[index],
+                    net: balances[index] - buyIns[index]
+                }))
+            };
+            gameHistory.push(gameResult);
+            updateStatistics();
+        }
+
+        function clearAll() {
+            document.getElementById('pokerForm').reset();
+            document.getElementById('errorContainer').innerText = '';
             document.getElementById('netResults').innerHTML = '';
             document.getElementById('results').innerHTML = '';
-            return;
-        } else {
-            document.getElementById('errorContainer').innerText = '';
+
+            const playerInputs = document.getElementById('playerInputs');
+            while (playerInputs.children.length > 1) {
+                playerInputs.removeChild(playerInputs.lastChild);
+            }
+            playerCount = 1;
         }
 
-        const results = settleDebts(buyIns, names, balances);
-        const netResultsContainer = document.getElementById('netResults');
-        const resultsContainer = document.getElementById('results');
-        netResultsContainer.innerHTML = '<h2>Net Results:</h2>' + results.netResults.join('<br>');
-        resultsContainer.innerHTML = '<h2>Transactions:</h2>' + results.transactions.join('<br>');
-
-        const gameResult = {
-            date: new Date().toLocaleString(),
-            players: names.map((name, index) => ({
-                name: name,
-                buyIn: buyIns[index],
-                balance: balances[index],
-                net: balances[index] - buyIns[index]
-            }))
-        };
-        gameHistory.push(gameResult);
-        updateStatistics();
-    }
-
-    function clearAll() {
-        document.getElementById('pokerForm').reset();
-        document.getElementById('errorContainer').innerText = '';
-        document.getElementById('netResults').innerHTML = '';
-        document.getElementById('results').innerHTML = '';
-
-        const playerInputs = document.getElementById('playerInputs');
-        while (playerInputs.children.length > 1) {
-            playerInputs.removeChild(playerInputs.lastChild);
+        function validateTotals(buyIns, endBalances) {
+            const totalBuyIns = buyIns.reduce((acc, cur) => acc + cur, 0);
+            const totalEndBalance = endBalances.reduce((acc, cur) => acc + cur, 0);
+            return Math.abs(totalEndBalance - totalBuyIns) < 0.01;
         }
-        playerCount = 1;
-    }
 
-    function validateTotals(buyIns, endBalances) {
-        const totalBuyIns = buyIns.reduce((acc, cur) => acc + cur, 0);
-        const totalEndBalance = endBalances.reduce((acc, cur) => acc + cur, 0);
-        return Math.abs(totalEndBalance - totalBuyIns) < 0.01;
-    }
+        function openModal() {
+            document.getElementById('historyModal').style.display = 'block';
+            updateGameHistory();
+        }
 
-    function openModal() {
-        document.getElementById('historyModal').style.display = 'block';
-        updateGameHistory();
-    }
+        function closeModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
 
-    function closeModal() {
-        document.getElementById('historyModal').style.display = 'none';
-    }
+        function updateGameHistory() {
+            const gameHistoryContainer = document.getElementById('gameHistory');
+            gameHistoryContainer.innerHTML = '';
 
-    function updateGameHistory() {
-        const gameHistoryContainer = document.getElementById('gameHistory');
-        gameHistoryContainer.innerHTML = '';
+            gameHistory.forEach((game, index) => {
+                const gameElement = document.createElement('div');
+                gameElement.innerHTML = `
+                    <h3>Game ${index + 1} - ${game.date}</h3>
+                    <table>
+                        <tr>
+                            <th>Player</th>
+                            <th>Buy-In</th>
+                            <th>End Balance</th>
+                            <th>Net</th>
+                        </tr>
+                        ${game.players.map(player => `
+                            <tr>
+                                <td>${player.name}</td>
+                                <td>$${player.buyIn.toFixed(2)}</td>
+                                <td>$${player.balance.toFixed(2)}</td>
+                                <td>$${player.net.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                `;
+                gameHistoryContainer.appendChild(gameElement);
+            });
+        }
 
-        gameHistory.forEach((game, index) => {
-            const gameElement = document.createElement('div');
-            gameElement.innerHTML = `
-                <h3>Game ${index + 1} - ${game.date}</h3>
+        function updateStatistics() {
+            const statisticsContainer = document.getElementById('statistics');
+            statisticsContainer.innerHTML = '';
+
+            const playerStats = {};
+
+            gameHistory.forEach(game => {
+                game.players.forEach(player => {
+                    if (!playerStats[player.name]) {
+                        playerStats[player.name] = {
+                            totalGames: 0,
+                            totalBuyIns: 0,
+                            totalEndBalances: 0,
+                            totalNet: 0
+                        };
+                    }
+
+                    playerStats[player.name].totalGames++;
+                    playerStats[player.name].totalBuyIns += player.buyIn;
+                    playerStats[player.name].totalEndBalances += player.balance;
+                    playerStats[player.name].totalNet += player.net;
+                });
+            });
+
+            const leaderboard = Object.entries(playerStats)
+                .map(([name, stats]) => ({ name, totalNet: stats.totalNet }))
+                .sort((a, b) => b.totalNet - a.totalNet);
+
+            const leaderboardElement = document.createElement('div');
+            leaderboardElement.innerHTML = `
+                <h3>Leaderboard</h3>
                 <table>
                     <tr>
+                        <th>Rank</th>
                         <th>Player</th>
-                        <th>Buy-In</th>
-                        <th>End Balance</th>
-                        <th>Net</th>
+                        <th>Total Net Winnings</th>
                     </tr>
-                    ${game.players.map(player => `
+                    ${leaderboard.map((player, index) => `
                         <tr>
+                            <td>${index + 1}</td>
                             <td>${player.name}</td>
-                            <td>$${player.buyIn.toFixed(2)}</td>
-                            <td>$${player.balance.toFixed(2)}</td>
-                            <td>$${player.net.toFixed(2)}</td>
+                            <td>$${player.totalNet.toFixed(2)}</td>
                         </tr>
                     `).join('')}
                 </table>
             `;
-            gameHistoryContainer.appendChild(gameElement);
-        });
-    }
+            statisticsContainer.appendChild(leaderboardElement);
 
-    function updateStatistics() {
-        const statisticsContainer = document.getElementById('statistics');
-        statisticsContainer.innerHTML = '';
-
-        const playerStats = {};
-
-        gameHistory.forEach(game => {
-            game.players.forEach(player => {
-                if (!playerStats[player.name]) {
-                    playerStats[player.name] = {
-                        totalGames: 0,
-                        totalBuyIns: 0,
-                        totalEndBalances: 0,
-                        totalNet: 0
-                    };
-                }
-
-                playerStats[player.name].totalGames++;
-                playerStats[player.name].totalBuyIns += player.buyIn;
-                playerStats[player.name].totalEndBalances += player.balance;
-                playerStats[player.name].totalNet += player.net;
+            Object.entries(playerStats).forEach(([name, stats]) => {
+                const playerElement = document.createElement('div');
+                playerElement.innerHTML = `
+                    <h3>${name}</h3>
+                    <p>Total Games: ${stats.totalGames}</p>
+                    <p>Average Buy-In: $${(stats.totalBuyIns / stats.totalGames).toFixed(2)}</p>
+                    <p>Average End Balance: $${(stats.totalEndBalances / stats.totalGames).toFixed(2)}</p>
+                    <p>Average Net: $${(stats.totalNet / stats.totalGames).toFixed(2)}</p>
+                `;
+                statisticsContainer.appendChild(playerElement);
             });
-        });
-
-        Object.entries(playerStats).forEach(([name, stats]) => {
-            const playerElement = document.createElement('div');
-            playerElement.innerHTML = `
-                <h3>${name}</h3>
-                <p>Total Games: ${stats.totalGames}</p>
-                <p>Average Buy-In: $${(stats.totalBuyIns / stats.totalGames).toFixed(2)}</p>
-                <p>Average End Balance: $${(stats.totalEndBalances / stats.totalGames).toFixed(2)}</p>
-                <p>Average Net: $${(stats.totalNet / stats.totalGames).toFixed(2)}</p>
-            `;
-            statisticsContainer.appendChild(playerElement);
-        });
-    }
-</script>
+        }
+    </script>
+</body>
+</html>
