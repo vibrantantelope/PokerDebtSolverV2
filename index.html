@@ -177,6 +177,8 @@
             <button type="button" onclick="processData()">Calculate Debts</button>
             <button type="button" onclick="clearAll()">Clear All</button>
             <button type="button" onclick="openModal()">View History</button>
+            <button type="button" onclick="exportAsImage()">Export as Image</button>
+            <button type="button" onclick="exportAsCSV()">Export as CSV</button>
         </form>
         <div id="errorContainer" class="error-message"></div>
         <div id="netResults"></div>
@@ -189,12 +191,22 @@
             <div id="gameHistory"></div>
             <h2>Statistics</h2>
             <div id="statistics"></div>
+            <button type="button" onclick="clearHistory()">Clear History</button>
+            <button type="button" onclick="exportHistoryAsCSV()">Export History as CSV</button>
         </div>
     </div>
 
     <script>
         let playerCount = 1;
         let gameHistory = [];
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const savedHistory = localStorage.getItem('gameHistory');
+            if (savedHistory) {
+                gameHistory = JSON.parse(savedHistory);
+                updateStatistics();
+            }
+        });
 
         function addPlayer() {
             const playerInputs = document.getElementById('playerInputs');
@@ -281,6 +293,7 @@
                 }))
             };
             gameHistory.push(gameResult);
+            localStorage.setItem('gameHistory', JSON.stringify(gameHistory)); // Save to localStorage
             updateStatistics();
         }
 
@@ -400,6 +413,95 @@
                 `;
                 statisticsContainer.appendChild(playerElement);
             });
+        }
+
+        function clearHistory() {
+            localStorage.removeItem('gameHistory');
+            gameHistory = [];
+            updateGameHistory();
+            updateStatistics();
+        }
+
+        function exportAsImage() {
+            const gameResult = gameHistory[gameHistory.length - 1];
+            const plainText = generatePlainText(gameResult);
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+
+            const fontSize = 16;
+            const lineHeight = fontSize * 1.5;
+            const lines = plainText.split('\n');
+
+            const maxLineWidth = Math.max(...lines.map(line => context.measureText(line).width));
+            const canvasWidth = maxLineWidth + 40;
+            const canvasHeight = lines.length * lineHeight + 40;
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            context.font = `${fontSize}px Arial`;
+            context.fillStyle = '#000000';
+            lines.forEach((line, index) => {
+                context.fillText(line, 20, (index + 1) * lineHeight);
+            });
+
+            const imageWindow = window.open('', '_blank');
+            imageWindow.document.write('<img src="' + canvas.toDataURL('image/png') + '" alt="Game Result" />');
+            imageWindow.document.close();
+        }
+
+        function exportAsCSV() {
+            const gameResult = gameHistory[gameHistory.length - 1];
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Name,Buy-In,End Balance,Net\n";
+
+            gameResult.players.forEach(player => {
+                const row = `${player.name},${player.buyIn},${player.balance},${player.net}`;
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `game_result_${new Date().toISOString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportHistoryAsCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Game Number,Date,Name,Buy-In,End Balance,Net\n";
+
+            gameHistory.forEach((game, gameIndex) => {
+                game.players.forEach(player => {
+                    const row = `${gameIndex + 1},${game.date},${player.name},${player.buyIn},${player.balance},${player.net}`;
+                    csvContent += row + "\n";
+                });
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `game_history_${new Date().toISOString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function generatePlainText(gameResult) {
+            const netResults = gameResult.players.map(player => `${player.name}: Net ${player.net >= 0 ? 'Gain' : 'Loss'}: $${player.net.toFixed(2)}`);
+            const transactions = settleDebts(gameResult.players.map(player => player.buyIn), gameResult.players.map(player => player.name), gameResult.players.map(player => player.balance)).transactions;
+
+            const plainText = `Game Summary - ${gameResult.date}\n\n` +
+                `Net Results:\n${netResults.join('\n')}\n\n` +
+                `Transactions:\n${transactions.join('\n')}`;
+
+            return plainText;
         }
     </script>
 </body>
