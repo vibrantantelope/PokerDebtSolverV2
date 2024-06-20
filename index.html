@@ -92,13 +92,6 @@
             text-shadow: 1px 1px 2px #000000;
         }
 
-        .poker-chips {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 150px;
-        }
-
         .player-input {
             margin-bottom: 20px;
             padding: 20px;
@@ -177,8 +170,6 @@
             <button type="button" onclick="processData()">Calculate Debts</button>
             <button type="button" onclick="clearAll()">Clear All</button>
             <button type="button" onclick="openModal()">View History</button>
-            <button type="button" onclick="exportAsImage()">Export as Image</button>
-            <button type="button" onclick="exportAsCSV()">Export as CSV</button>
         </form>
         <div id="errorContainer" class="error-message"></div>
         <div id="netResults"></div>
@@ -192,7 +183,6 @@
             <h2>Statistics</h2>
             <div id="statistics"></div>
             <button type="button" onclick="clearHistory()">Clear History</button>
-            <button type="button" onclick="exportHistoryAsCSV()">Export History as CSV</button>
         </div>
     </div>
 
@@ -253,6 +243,16 @@
             return { transactions, netResults };
         }
 
+        function validateTotals(buyIns, endBalances) {
+            const totalBuyIns = buyIns.reduce((acc, cur) => acc + cur, 0);
+            const totalEndBalance = endBalances.reduce((acc, cur) => acc + cur, 0);
+            const difference = totalEndBalance - totalBuyIns;
+            return {
+                isValid: Math.abs(difference) < 0.01,
+                difference: difference
+            };
+        }
+
         function processData() {
             const buyIns = [];
             const names = [];
@@ -268,13 +268,22 @@
                 balances.push(balance);
             }
 
-            if (!validateTotals(buyIns, balances)) {
-                document.getElementById('errorContainer').innerText = 'Error: The total of end balances does not match the total of buy-ins.';
+            const validationResult = validateTotals(buyIns, balances);
+            const errorContainer = document.getElementById('errorContainer');
+
+            if (!validationResult.isValid) {
+                errorContainer.innerHTML = `
+                    <p>Error: The total of end balances does not match the total of buy-ins.</p>
+                    <p>Discrepancy: $${validationResult.difference.toFixed(2)}</p>
+                    <p>Would you like to:</p>
+                    <button onclick="distributeDiscrepancy(${validationResult.difference})">Distribute the difference equally</button>
+                    <button onclick="assignToHouse(${validationResult.difference})">Assign difference to house</button>
+                `;
                 document.getElementById('netResults').innerHTML = '';
                 document.getElementById('results').innerHTML = '';
                 return;
             } else {
-                document.getElementById('errorContainer').innerText = '';
+                errorContainer.innerText = '';
             }
 
             const results = settleDebts(buyIns, names, balances);
@@ -293,8 +302,37 @@
                 }))
             };
             gameHistory.push(gameResult);
-            localStorage.setItem('gameHistory', JSON.stringify(gameHistory)); // Save to localStorage
+            localStorage.setItem('gameHistory', JSON.stringify(gameHistory));
             updateStatistics();
+        }
+
+        function distributeDiscrepancy(difference) {
+            const perPlayerAdjustment = difference / playerCount;
+            for (let i = 0; i < playerCount; i++) {
+                const balanceInput = document.getElementById(`balance${i}`);
+                balanceInput.value = (parseFloat(balanceInput.value) - perPlayerAdjustment).toFixed(2);
+            }
+            document.getElementById('errorContainer').innerHTML = '<p>Discrepancy has been distributed equally among all players.</p>';
+            processData();
+        }
+
+        function assignToHouse(difference) {
+            const houseIndex = playerCount;
+            const playerInputs = document.getElementById('playerInputs');
+            const newPlayerInput = document.createElement('div');
+            newPlayerInput.className = 'player-input';
+            newPlayerInput.innerHTML = `
+                <label for="name${houseIndex}">Name:</label>
+                <input type="text" id="name${houseIndex}" value="House" readonly>
+                <label for="buyin${houseIndex}">Buy-in Amount:</label>
+                <input type="number" id="buyin${houseIndex}" value="0" readonly>
+                <label for="balance${houseIndex}">End Balance:</label>
+                <input type="number" id="balance${houseIndex}" value="${difference.toFixed(2)}" readonly>
+            `;
+            playerInputs.appendChild(newPlayerInput);
+            playerCount++;
+            document.getElementById('errorContainer').innerHTML = '<p>Discrepancy has been assigned to the house.</p>';
+            processData();
         }
 
         function clearAll() {
@@ -308,12 +346,6 @@
                 playerInputs.removeChild(playerInputs.lastChild);
             }
             playerCount = 1;
-        }
-
-        function validateTotals(buyIns, endBalances) {
-            const totalBuyIns = buyIns.reduce((acc, cur) => acc + cur, 0);
-            const totalEndBalance = endBalances.reduce((acc, cur) => acc + cur, 0);
-            return Math.abs(totalEndBalance - totalBuyIns) < 0.01;
         }
 
         function openModal() {
@@ -378,30 +410,6 @@
                 });
             });
 
-            const leaderboard = Object.entries(playerStats)
-                .map(([name, stats]) => ({ name, totalNet: stats.totalNet }))
-                .sort((a, b) => b.totalNet - a.totalNet);
-
-            const leaderboardElement = document.createElement('div');
-            leaderboardElement.innerHTML = `
-                <h3>Leaderboard</h3>
-                <table>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Total Net Winnings</th>
-                    </tr>
-                    ${leaderboard.map((player, index) => `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td>${player.name}</td>
-                            <td>$${player.totalNet.toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
-                </table>
-            `;
-            statisticsContainer.appendChild(leaderboardElement);
-
             Object.entries(playerStats).forEach(([name, stats]) => {
                 const playerElement = document.createElement('div');
                 playerElement.innerHTML = `
@@ -420,88 +428,6 @@
             gameHistory = [];
             updateGameHistory();
             updateStatistics();
-        }
-
-        function exportAsImage() {
-            const gameResult = gameHistory[gameHistory.length - 1];
-            const plainText = generatePlainText(gameResult);
-
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-
-            const fontSize = 16;
-            const lineHeight = fontSize * 1.5;
-            const lines = plainText.split('\n');
-
-            const maxLineWidth = Math.max(...lines.map(line => context.measureText(line).width));
-            const canvasWidth = maxLineWidth + 40;
-            const canvasHeight = lines.length * lineHeight + 40;
-
-            canvas.width = canvasWidth;
-            canvas.height = canvasHeight;
-
-            context.fillStyle = '#ffffff';
-            context.fillRect(0, 0, canvasWidth, canvasHeight);
-
-            context.font = `${fontSize}px Arial`;
-            context.fillStyle = '#000000';
-            lines.forEach((line, index) => {
-                context.fillText(line, 20, (index + 1) * lineHeight);
-            });
-
-            const imageWindow = window.open('', '_blank');
-            imageWindow.document.write('<img src="' + canvas.toDataURL('image/png') + '" alt="Game Result" />');
-            imageWindow.document.close();
-        }
-
-        function exportAsCSV() {
-            const gameResult = gameHistory[gameHistory.length - 1];
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Name,Buy-In,End Balance,Net\n";
-
-            gameResult.players.forEach(player => {
-                const row = `${player.name},${player.buyIn},${player.balance},${player.net}`;
-                csvContent += row + "\n";
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `game_result_${new Date().toISOString()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function exportHistoryAsCSV() {
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Game Number,Date,Name,Buy-In,End Balance,Net\n";
-
-            gameHistory.forEach((game, gameIndex) => {
-                game.players.forEach(player => {
-                    const row = `${gameIndex + 1},${game.date},${player.name},${player.buyIn},${player.balance},${player.net}`;
-                    csvContent += row + "\n";
-                });
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `game_history_${new Date().toISOString()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function generatePlainText(gameResult) {
-            const netResults = gameResult.players.map(player => `${player.name}: Net ${player.net >= 0 ? 'Gain' : 'Loss'}: $${player.net.toFixed(2)}`);
-            const transactions = settleDebts(gameResult.players.map(player => player.buyIn), gameResult.players.map(player => player.name), gameResult.players.map(player => player.balance)).transactions;
-
-            const plainText = `Game Summary - ${gameResult.date}\n\n` +
-                `Net Results:\n${netResults.join('\n')}\n\n` +
-                `Transactions:\n${transactions.join('\n')}`;
-
-            return plainText;
         }
     </script>
 </body>
