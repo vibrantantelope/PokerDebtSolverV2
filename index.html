@@ -179,9 +179,9 @@
                     <label for="name0">Name:</label>
                     <input type="text" id="name0" required>
                     <label for="buyin0">Buy-in Amount:</label>
-                    <input type="number" id="buyin0" required>
+                    <input type="number" id="buyin0" required min="0" step="0.01">
                     <label for="balance0">End Balance:</label>
-                    <input type="number" id="balance0" required>
+                    <input type="number" id="balance0" required min="0" step="0.01">
                 </div>
             </div>
             <button type="button" onclick="addPlayer()">Add Player</button>
@@ -213,10 +213,46 @@
         document.addEventListener('DOMContentLoaded', (event) => {
             const savedHistory = localStorage.getItem('gameHistory');
             if (savedHistory) {
-                gameHistory = JSON.parse(savedHistory);
-                updateStatistics();
+                try {
+                    const parsedHistory = JSON.parse(savedHistory);
+                    if (Array.isArray(parsedHistory)) {
+                        gameHistory = parsedHistory;
+                        sanitizeGameHistory(); // Sanitize after loading
+                        updateStatistics();
+                    } else {
+                        console.error('Saved gameHistory is not an array. Resetting gameHistory.');
+                        localStorage.removeItem('gameHistory');
+                    }
+                } catch (error) {
+                    console.error('Error parsing saved gameHistory:', error);
+                    localStorage.removeItem('gameHistory');
+                }
             }
         });
+
+        // Function to sanitize gameHistory by removing invalid entries
+        function sanitizeGameHistory() {
+            const originalLength = gameHistory.length;
+            gameHistory = gameHistory.filter(game => {
+                if (!game || !Array.isArray(game.players)) {
+                    console.warn('Removing invalid game entry:', game);
+                    return false;
+                }
+                // Further validate each player
+                const validPlayers = game.players.filter(player => player && typeof player.name === 'string');
+                if (validPlayers.length === 0) {
+                    console.warn('Removing game with no valid players:', game);
+                    return false;
+                }
+                // Update the players array to only include valid players
+                game.players = validPlayers;
+                return true;
+            });
+            if (gameHistory.length !== originalLength) {
+                localStorage.setItem('gameHistory', JSON.stringify(gameHistory));
+                console.log(`Sanitized gameHistory. Removed ${originalLength - gameHistory.length} invalid entries.`);
+            }
+        }
 
         function addPlayer() {
             const playerInputs = document.getElementById('playerInputs');
@@ -226,9 +262,9 @@
                 <label for="name${playerCount}">Name:</label>
                 <input type="text" id="name${playerCount}" required>
                 <label for="buyin${playerCount}">Buy-in Amount:</label>
-                <input type="number" id="buyin${playerCount}" required>
+                <input type="number" id="buyin${playerCount}" required min="0" step="0.01">
                 <label for="balance${playerCount}">End Balance:</label>
-                <input type="number" id="balance${playerCount}" required>
+                <input type="number" id="balance${playerCount}" required min="0" step="0.01">
             `;
             playerInputs.appendChild(newPlayerInput);
             playerCount++;
@@ -279,9 +315,24 @@
             const balances = [];
 
             for (let i = 0; i < playerCount; i++) {
-                const buyIn = parseFloat(document.getElementById(`buyin${i}`).value);
-                const name = document.getElementById(`name${i}`).value.trim();
-                const balance = parseFloat(document.getElementById(`balance${i}`).value);
+                const buyInInput = document.getElementById(`buyin${i}`);
+                const balanceInput = document.getElementById(`balance${i}`);
+                const nameInput = document.getElementById(`name${i}`);
+
+                // Validate inputs
+                if (!buyInInput || !balanceInput || !nameInput) {
+                    continue; // Skip if any input is missing
+                }
+
+                const buyIn = parseFloat(buyInInput.value);
+                const name = nameInput.value.trim();
+                const balance = parseFloat(balanceInput.value);
+
+                // Ensure numerical values are valid
+                if (isNaN(buyIn) || isNaN(balance)) {
+                    alert(`Invalid numerical input for player ${i + 1}. Please enter valid numbers.`);
+                    return;
+                }
 
                 buyIns.push(buyIn);
                 names.push(name);
@@ -330,7 +381,10 @@
             const perPlayerAdjustment = difference / playerCount;
             for (let i = 0; i < playerCount; i++) {
                 const balanceInput = document.getElementById(`balance${i}`);
-                balanceInput.value = (parseFloat(balanceInput.value) - perPlayerAdjustment).toFixed(2);
+                if (balanceInput) {
+                    const currentBalance = parseFloat(balanceInput.value) || 0;
+                    balanceInput.value = (currentBalance - perPlayerAdjustment).toFixed(2);
+                }
             }
             document.getElementById('errorContainer').innerHTML = '<p>Discrepancy has been distributed equally among all players.</p>';
             processData();
@@ -356,16 +410,19 @@
         }
 
         function clearAll() {
-            document.getElementById('pokerForm').reset();
-            document.getElementById('errorContainer').innerText = '';
-            document.getElementById('netResults').innerHTML = '';
-            document.getElementById('results').innerHTML = '';
+            // Add confirmation prompt
+            if (confirm('Are you sure you want to clear all player inputs and reset the form? This action cannot be undone.')) {
+                document.getElementById('pokerForm').reset();
+                document.getElementById('errorContainer').innerText = '';
+                document.getElementById('netResults').innerHTML = '';
+                document.getElementById('results').innerHTML = '';
 
-            const playerInputs = document.getElementById('playerInputs');
-            while (playerInputs.children.length > 1) {
-                playerInputs.removeChild(playerInputs.lastChild);
+                const playerInputs = document.getElementById('playerInputs');
+                while (playerInputs.children.length > 1) {
+                    playerInputs.removeChild(playerInputs.lastChild);
+                }
+                playerCount = 1;
             }
-            playerCount = 1;
         }
 
         function openModal() {
@@ -402,27 +459,47 @@
             gameHistoryContainer.innerHTML = '';
 
             gameHistory.forEach((game, index) => {
-                const gameElement = document.createElement('div');
-                gameElement.innerHTML = `
-                    <h3>Game ${index + 1} - ${game.date}</h3>
-                    <table>
-                        <tr>
-                            <th>Player</th>
-                            <th>Buy-In</th>
-                            <th>End Balance</th>
-                            <th>Net</th>
-                        </tr>
-                        ${game.players.map(player => `
+                try {
+                    // Check if game is defined and has a valid players array
+                    if (!game || !Array.isArray(game.players)) {
+                        console.error(`Game ${index + 1} has invalid players data.`);
+                        return;
+                    }
+
+                    // Further validate each player
+                    const validPlayers = game.players.filter(player => player && typeof player.balance === 'number');
+                    if (validPlayers.length === 0) {
+                        console.warn(`Game ${index + 1} has no valid players.`);
+                        return;
+                    }
+
+                    // Sort players by end balance (high to low)
+                    const sortedPlayers = [...validPlayers].sort((a, b) => b.balance - a.balance);
+
+                    const gameElement = document.createElement('div');
+                    gameElement.innerHTML = `
+                        <h3>Game ${index + 1} - ${game.date}</h3>
+                        <table>
                             <tr>
-                                <td>${player.name}</td>
-                                <td>$${player.buyIn.toFixed(2)}</td>
-                                <td>$${player.balance.toFixed(2)}</td>
-                                <td>$${player.net.toFixed(2)}</td>
+                                <th>Player</th>
+                                <th>Buy-In</th>
+                                <th>End Balance</th>
+                                <th>Net</th>
                             </tr>
-                        `).join('')}
-                    </table>
-                `;
-                gameHistoryContainer.appendChild(gameElement);
+                            ${sortedPlayers.map(player => `
+                                <tr>
+                                    <td>${player.name || 'Unknown'}</td>
+                                    <td>$${(player.buyIn != null && !isNaN(player.buyIn)) ? player.buyIn.toFixed(2) : '0.00'}</td>
+                                    <td>$${(player.balance != null && !isNaN(player.balance)) ? player.balance.toFixed(2) : '0.00'}</td>
+                                    <td>$${(player.net != null && !isNaN(player.net)) ? player.net.toFixed(2) : '0.00'}</td>
+                                </tr>
+                            `).join('')}
+                        </table>
+                    `;
+                    gameHistoryContainer.appendChild(gameElement);
+                } catch (error) {
+                    console.error(`Error processing game ${index + 1}:`, error);
+                }
             });
         }
 
@@ -433,7 +510,10 @@
             const playerStats = {};
 
             gameHistory.forEach(game => {
+                if (!game || !Array.isArray(game.players)) return; // Skip if players data is invalid
                 game.players.forEach(player => {
+                    if (!player || !player.name) return; // Skip if player name is missing
+
                     if (!playerStats[player.name]) {
                         playerStats[player.name] = {
                             totalGames: 0,
@@ -444,9 +524,9 @@
                     }
 
                     playerStats[player.name].totalGames++;
-                    playerStats[player.name].totalBuyIns += player.buyIn;
-                    playerStats[player.name].totalEndBalances += player.balance;
-                    playerStats[player.name].totalNet += player.net;
+                    playerStats[player.name].totalBuyIns += parseFloat(player.buyIn) || 0;
+                    playerStats[player.name].totalEndBalances += parseFloat(player.balance) || 0;
+                    playerStats[player.name].totalNet += parseFloat(player.net) || 0;
                 });
             });
 
@@ -464,10 +544,14 @@
         }
 
         function clearHistory() {
-            localStorage.removeItem('gameHistory');
-            gameHistory = [];
-            updateGameHistory();
-            updateStatistics();
+            // Add confirmation prompt
+            if (confirm('Are you sure you want to clear all game history? This action cannot be undone.')) {
+                localStorage.removeItem('gameHistory');
+                gameHistory = [];
+                updateGameHistory();
+                updateStatistics();
+                alert('Game history has been cleared.');
+            }
         }
 
         function uploadGameHistory(event) {
@@ -478,17 +562,27 @@
                     try {
                         const uploadedHistory = JSON.parse(e.target.result);
                         if (Array.isArray(uploadedHistory)) {
+                            // Validate each game entry
+                            const validUploadedHistory = uploadedHistory.filter(game => game && Array.isArray(game.players));
+                            // Further validate players within each game
+                            const sanitizedUploadedHistory = validUploadedHistory.map(game => ({
+                                date: game.date || new Date().toLocaleString(),
+                                players: game.players.filter(player => player && typeof player.name === 'string' && typeof player.buyIn === 'number' && typeof player.balance === 'number')
+                            })).filter(game => game.players.length > 0);
+
                             // Merge the uploaded history with the existing history
-                            gameHistory = [...gameHistory, ...uploadedHistory];
+                            gameHistory = [...gameHistory, ...sanitizedUploadedHistory];
                             localStorage.setItem('gameHistory', JSON.stringify(gameHistory));
+                            sanitizeGameHistory(); // Sanitize after merging
                             updateStatistics();
                             updateGameHistory();
                             alert('Game history uploaded successfully!');
                         } else {
-                            throw new Error('Invalid file format');
+                            throw new Error('Invalid file format: Expected an array of game histories.');
                         }
                     } catch (error) {
                         alert('Error uploading file: ' + error.message);
+                        console.error('Upload Error:', error);
                     }
                 };
                 reader.readAsText(file);
@@ -496,7 +590,7 @@
         }
 
         function downloadGameHistory() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(gameHistory));
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(gameHistory, null, 2));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
             downloadAnchorNode.setAttribute("download", "poker_game_history.json");
@@ -507,21 +601,23 @@
 
         function convertToCSV(gameHistory) {
             const header = ['Game Date', 'Player Name', 'Buy-In', 'End Balance', 'Net'];
-            const csvRows = [header];
+            const csvRows = [header.map(field => `"${field}"`).join(',')];
 
             gameHistory.forEach((game, index) => {
+                if (!game || !Array.isArray(game.players)) return;
                 game.players.forEach(player => {
+                    if (!player || typeof player.name !== 'string') return;
                     csvRows.push([
-                        game.date,
-                        player.name,
-                        player.buyIn.toFixed(2),
-                        player.balance.toFixed(2),
-                        player.net.toFixed(2)
-                    ]);
+                        `"${game.date || 'Unknown Date'}"`,
+                        `"${player.name}"`,
+                        player.buyIn != null && !isNaN(player.buyIn) ? player.buyIn.toFixed(2) : '0.00',
+                        player.balance != null && !isNaN(player.balance) ? player.balance.toFixed(2) : '0.00',
+                        player.net != null && !isNaN(player.net) ? player.net.toFixed(2) : '0.00'
+                    ].join(','));
                 });
             });
 
-            return csvRows.map(row => row.join(',')).join('\n');
+            return csvRows.join('\n');
         }
 
         function downloadGameHistoryCSV() {
